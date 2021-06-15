@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: "{{ include "injector-webhook.fullname" . }}-test-connection"
+  labels:
+    {{- include "injector-webhook.labels" . | nindent 4 }}
+  annotations:
+    "helm.sh/hook": test
+spec:
+  containers:
+    - name: wget
+      image: busybox
+      command: ['wget']
+      args: ['{{ include "injector-webhook.fullname" . }}:{{ .Values.service.port }}']
+  restartPolicy: Never
