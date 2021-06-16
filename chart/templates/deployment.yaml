@@ -34,6 +34,10 @@ spec:
             - name: https
               containerPort: 8080
               protocol: TCP
+          volumeMounts:
+            - name: injector-webhook-tls
+              mountPath: "/tls"
+              readOnly: true
           livenessProbe:
             httpGet:
               path: /
@@ -44,6 +48,10 @@ spec:
               port: https
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
+      volumes:
+        - name: injector-webhook-tls
+          secret:
+            secretName: injector-webhook-tls
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
