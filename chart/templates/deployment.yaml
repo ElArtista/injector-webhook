@@ -38,14 +38,6 @@ spec:
             - name: injector-webhook-tls
               mountPath: "/tls"
               readOnly: true
-          livenessProbe:
-            httpGet:
-              path: /
-              port: https
-          readinessProbe:
-            httpGet:
-              path: /
-              port: https
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
       volumes:
