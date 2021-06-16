@@ -1,0 +1,12 @@
+apiVersion: cert-manager.io/v1alpha2
+kind: Certificate
+metadata:
+  name: injector-webhook
+spec:
+  commonName: injector-webhook.svc.cluster.local
+  secretName: injector-webhook-tls
+  dnsNames:
+    - injector-webhook.ingress.svc
+  issuerRef:
+    name: local-ca-issuer
+    kind: ClusterIssuer
