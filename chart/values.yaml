@@ -1,9 +1,8 @@
 # Default values for injector-webhook.
 image:
-  repository: nginx
+  repository: injector-webhook
   pullPolicy: IfNotPresent
-  # Overrides the image tag whose default is the chart appVersion.
-  tag: ""
+  tag: "latest"
 
 imagePullSecrets: []
 nameOverride: ""
