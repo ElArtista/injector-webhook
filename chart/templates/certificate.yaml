@@ -6,7 +6,7 @@ spec:
   commonName: injector-webhook.svc.cluster.local
   secretName: injector-webhook-tls
   dnsNames:
-    - injector-webhook.ingress.svc
+    - injector-webhook.{{ .Release.Namespace }}.svc
   issuerRef:
     name: local-ca-issuer
     kind: ClusterIssuer

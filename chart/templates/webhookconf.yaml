@@ -3,7 +3,7 @@ kind: MutatingWebhookConfiguration
 metadata:
   name: injector-webhook
   annotations:
-    cert-manager.io/inject-ca-from: ingress/injector-webhook
+    cert-manager.io/inject-ca-from: {{ .Release.Namespace }}/injector-webhook
 webhooks:
   - name: "io.k8s.injector-webhook"
     rules:
@@ -14,7 +14,7 @@ webhooks:
         scope:       "Namespaced"
     clientConfig:
       service:
-        namespace: ingress
+        namespace: {{ .Release.Namespace }}
         name: injector-webhook
         path: /mutate
     admissionReviewVersions: ["v1", "v1beta1"]
