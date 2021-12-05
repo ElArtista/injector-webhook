@@ -132,6 +132,12 @@ func handleMutate(c *gin.Context) {
 				ReadOnly:  false,
 				MountPath: "/etc/ssl/certs",
 			})
+			container.VolumeMounts = append(container.VolumeMounts, corev1.VolumeMount{
+				Name:      tlsSecret,
+				ReadOnly:  true,
+				SubPath:   "tls.crt",
+				MountPath: "/usr/local/share/ca-certificates/" + tlsSecret + ".crt",
+			})
 		}
 		containersChanged = true
 
@@ -165,6 +171,12 @@ func handleMutate(c *gin.Context) {
 				Name:      "certs",
 				ReadOnly:  false,
 				MountPath: "/etc/ssl/certs",
+			})
+			container.VolumeMounts = append(container.VolumeMounts, corev1.VolumeMount{
+				Name:      tlsSecret,
+				ReadOnly:  true,
+				SubPath:   "tls.crt",
+				MountPath: "/usr/local/share/ca-certificates/" + tlsSecret + ".crt",
 			})
 		}
 		initContainersChanged = true
