@@ -1,11 +1,12 @@
 package main
 
 import (
-	"log"
 	"encoding/json"
 	"github.com/gin-gonic/gin"
-	corev1		"k8s.io/api/core/v1"
 	admissionv1 "k8s.io/api/admission/v1"
+	corev1 "k8s.io/api/core/v1"
+	"log"
+	"strings"
 )
 
 type JSONPatchEntry struct {
@@ -62,6 +63,48 @@ func handleMutate(c *gin.Context) {
 		}
 	}
 
+	// Check and inject mounts
+	volumesChanged := false
+	if mounts, ok := pod.Annotations["inject/mounts"]; ok {
+		log.Println("Adding mounts:", mounts)
+		var entries []string
+		if err := json.Unmarshal([]byte(mounts), &entries); err == nil {
+			for _, e := range entries {
+				parts := strings.Split(e, ":")
+				cmsrc := strings.Split(parts[0], "/")
+				if len(parts) != 2 || len(cmsrc) != 2 {
+					log.Println("Malformed mount entry, skipping")
+					continue
+				}
+
+				cname, cpath := cmsrc[0], cmsrc[1]
+				dpath := parts[1]
+
+				pod.Spec.Volumes = append(pod.Spec.Volumes, corev1.Volume{
+					Name: cname,
+					VolumeSource: corev1.VolumeSource{
+						Secret: &corev1.SecretVolumeSource{
+							SecretName: cname,
+						},
+					},
+				})
+				for j := 0; j < len(pod.Spec.Containers); j++ {
+					container := &pod.Spec.Containers[j]
+					container.VolumeMounts = append(container.VolumeMounts, corev1.VolumeMount{
+						Name:      cname,
+						ReadOnly:  true,
+						SubPath:   cpath,
+						MountPath: dpath,
+					})
+				}
+				containersChanged = true
+				volumesChanged = true
+			}
+		} else {
+			log.Println("Error deserializing mounts array:", err)
+		}
+	}
+
 	// Create containersPatch if containers object changed
 	var containersPatch *JSONPatchEntry
 	if containersChanged {
@@ -77,16 +120,34 @@ func handleMutate(c *gin.Context) {
 		}
 	}
 
-	// Append non-nil patch entries
-	patch := []JSONPatchEntry{}
-	if containersPatch != nil {
-		patch = append(patch, *containersPatch)
+	// Create volumesPatch if volumes object changed
+	var volumesPatch *JSONPatchEntry
+	if volumesChanged {
+		volumesBytes, err := json.Marshal(pod.Spec.Volumes)
+		if err == nil {
+			volumesPatch = &JSONPatchEntry{
+				OP:    "replace",
+				Path:  "/spec/volumes",
+				Value: volumesBytes,
+			}
+		} else {
+			log.Println("Could not serialize spec.volumes:", err)
+		}
 	}
 
-	// Add patch to response if non empty
-	if len(patch) > 0 {
-		log.Println("Applying", len(patch), "patches in response")
-		patchBytes, err := json.Marshal(patch)
+	// Append non-nil patch entries
+	patches := []JSONPatchEntry{}
+	if containersPatch != nil {
+		patches = append(patches, *containersPatch)
+	}
+	if volumesPatch != nil {
+		patches = append(patches, *volumesPatch)
+	}
+
+	// Add patches to response if non empty
+	if len(patches) > 0 {
+		log.Println("Applying", len(patches), "patches in response")
+		patchBytes, err := json.Marshal(patches)
 		if err == nil {
 			patchType := admissionv1.PatchTypeJSONPatch
 			admissionResponse.Patch = patchBytes
