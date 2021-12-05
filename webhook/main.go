@@ -2,11 +2,13 @@ package main
 
 import (
 	"encoding/json"
+	"log"
+	"strings"
+
 	"github.com/gin-gonic/gin"
 	admissionv1 "k8s.io/api/admission/v1"
 	corev1 "k8s.io/api/core/v1"
-	"log"
-	"strings"
+	v1 "k8s.io/api/core/v1"
 )
 
 type JSONPatchEntry struct {
@@ -105,6 +107,61 @@ func handleMutate(c *gin.Context) {
 		}
 	}
 
+	initContainersChanged := false
+	if tlsSecret, ok := pod.Annotations["inject/certificate"]; ok {
+		pod.Spec.Volumes = append(pod.Spec.Volumes, corev1.Volume{
+			Name: tlsSecret,
+			VolumeSource: corev1.VolumeSource{
+				Secret: &corev1.SecretVolumeSource{
+					SecretName: tlsSecret,
+				},
+			},
+		})
+		pod.Spec.Volumes = append(pod.Spec.Volumes, corev1.Volume{
+			Name: "certs",
+			VolumeSource: corev1.VolumeSource{
+				EmptyDir: &v1.EmptyDirVolumeSource{},
+			},
+		})
+		volumesChanged = true
+
+		for i := 0; i < len(pod.Spec.Containers); i++ {
+			container := &pod.Spec.Containers[i]
+			container.VolumeMounts = append(container.VolumeMounts, corev1.VolumeMount{
+				Name:      "certs",
+				ReadOnly:  false,
+				MountPath: "/etc/ssl/certs",
+			})
+		}
+		containersChanged = true
+
+		pod.Spec.InitContainers = append([]v1.Container{
+			{
+				Name:  "inject-certificate",
+				Image: pod.Spec.Containers[0].Image,
+				Command: []string{
+					"/bin/sh",
+					"-c",
+					"update-ca-certificates && cp -r /etc/ssl/certs/. /certificates",
+				},
+				VolumeMounts: []v1.VolumeMount{
+					{
+						Name:      "certs",
+						ReadOnly:  false,
+						MountPath: "/certificates",
+					},
+					{
+						Name:      tlsSecret,
+						ReadOnly:  true,
+						SubPath:   "tls.crt",
+						MountPath: "/usr/local/share/ca-certificates/" + tlsSecret + ".crt",
+					},
+				},
+			},
+		}, pod.Spec.InitContainers...)
+		initContainersChanged = true
+	}
+
 	// Create containersPatch if containers object changed
 	var containersPatch *JSONPatchEntry
 	if containersChanged {
@@ -135,6 +192,21 @@ func handleMutate(c *gin.Context) {
 		}
 	}
 
+	// Create initContainersPatch if initContainers object changed
+	var initContainersPatch *JSONPatchEntry
+	if initContainersChanged {
+		initContainersBytes, err := json.Marshal(pod.Spec.InitContainers)
+		if err == nil {
+			initContainersPatch = &JSONPatchEntry{
+				OP:    "replace",
+				Path:  "/spec/initContainers",
+				Value: initContainersBytes,
+			}
+		} else {
+			log.Println("Could not serialize spec.initContainers:", err)
+		}
+	}
+
 	// Append non-nil patch entries
 	patches := []JSONPatchEntry{}
 	if containersPatch != nil {
@@ -142,6 +214,9 @@ func handleMutate(c *gin.Context) {
 	}
 	if volumesPatch != nil {
 		patches = append(patches, *volumesPatch)
+	}
+	if initContainersPatch != nil {
+		patches = append(patches, *initContainersPatch)
 	}
 
 	// Add patches to response if non empty
