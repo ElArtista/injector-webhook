@@ -159,6 +159,14 @@ func handleMutate(c *gin.Context) {
 				},
 			},
 		}, pod.Spec.InitContainers...)
+		for i := 1; i < len(pod.Spec.InitContainers); i++ {
+			container := &pod.Spec.InitContainers[i]
+			container.VolumeMounts = append(container.VolumeMounts, corev1.VolumeMount{
+				Name:      "certs",
+				ReadOnly:  false,
+				MountPath: "/etc/ssl/certs",
+			})
+		}
 		initContainersChanged = true
 	}
 
