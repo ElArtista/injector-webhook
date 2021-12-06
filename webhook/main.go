@@ -72,23 +72,43 @@ func handleMutate(c *gin.Context) {
 		var entries []string
 		if err := json.Unmarshal([]byte(mounts), &entries); err == nil {
 			for _, e := range entries {
+				// type:name/subPath:/mount/path
 				parts := strings.Split(e, ":")
-				cmsrc := strings.Split(parts[0], "/")
-				if len(parts) != 2 || len(cmsrc) != 2 {
+				if len(parts) != 3 || !strings.Contains("cs", parts[0]) {
 					log.Println("Malformed mount entry, skipping")
 					continue
 				}
 
-				cname, cpath := cmsrc[0], cmsrc[1]
-				dpath := parts[1]
+				stype := parts[0]
+				cmsrc := strings.Split(parts[1], "/")
+				cname := cmsrc[0]
+				cpath := ""
+				if len(cmsrc) > 1 {
+					cpath = cmsrc[1]
+				}
+				dpath := parts[2]
 
-				pod.Spec.Volumes = append(pod.Spec.Volumes, corev1.Volume{
-					Name: cname,
-					VolumeSource: corev1.VolumeSource{
+				var volume corev1.VolumeSource
+				switch stype {
+				case "c":
+					volume = corev1.VolumeSource{
+						ConfigMap: &corev1.ConfigMapVolumeSource{
+							LocalObjectReference: v1.LocalObjectReference{
+								Name: cname,
+							},
+						},
+					}
+				case "s":
+					volume = corev1.VolumeSource{
 						Secret: &corev1.SecretVolumeSource{
 							SecretName: cname,
 						},
-					},
+					}
+				}
+
+				pod.Spec.Volumes = append(pod.Spec.Volumes, corev1.Volume{
+					Name:         cname,
+					VolumeSource: volume,
 				})
 				for j := 0; j < len(pod.Spec.Containers); j++ {
 					container := &pod.Spec.Containers[j]
