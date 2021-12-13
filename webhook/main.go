@@ -161,10 +161,14 @@ func handleMutate(c *gin.Context) {
 		}
 		containersChanged = true
 
+		image := pod.Spec.Containers[0].Image
+		if certImage, ok := pod.Annotations["inject/certificate-image"]; ok {
+			image = certImage
+		}
 		pod.Spec.InitContainers = append([]v1.Container{
 			{
 				Name:  "inject-certificate",
-				Image: pod.Spec.Containers[0].Image,
+				Image: image,
 				Command: []string{
 					"/bin/sh",
 					"-c",
