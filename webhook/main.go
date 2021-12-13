@@ -168,7 +168,12 @@ func handleMutate(c *gin.Context) {
 				Command: []string{
 					"/bin/sh",
 					"-c",
-					"update-ca-certificates && cp -r /etc/ssl/certs/. /certificates",
+					"" +
+						"(" +
+						" command -v update-ca-certificates" +
+						" && update-ca-certificates" +
+						" || ( cat /usr/local/share/ca-certificates/" + tlsSecret + ".crt" + " >> /etc/ssl/certs/ca-certificates.crt )" +
+						"); cp -r /etc/ssl/certs/. /certificates",
 				},
 				VolumeMounts: []v1.VolumeMount{
 					{
