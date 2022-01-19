@@ -6,6 +6,11 @@ metadata:
     cert-manager.io/inject-ca-from: {{ .Release.Namespace }}/injector-webhook
 webhooks:
   - name: "io.k8s.injector-webhook"
+    objectSelector:
+      matchExpressions:
+        - key: "app.kubernetes.io/name"
+          operator: NotIn
+          values: ["injector-webhook"]
     rules:
       - apiGroups:   [""]
         apiVersions: ["v1"]
